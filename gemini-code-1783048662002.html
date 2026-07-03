@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>亞菲得 - 專案與績效追蹤系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            safelist: [
+                'bg-gray-100', 'bg-gray-500', 'text-gray-600', 'text-gray-700', 'border-gray-300',
+                'bg-blue-100', 'bg-blue-500', 'text-blue-600', 'text-blue-700', 'border-blue-300',
+                'bg-indigo-100', 'bg-indigo-500', 'text-indigo-600', 'text-indigo-700', 'border-indigo-300',
+                'bg-green-100', 'bg-green-500', 'text-green-600', 'text-green-700', 'border-green-300',
+                'bg-yellow-100', 'bg-yellow-500', 'text-yellow-600', 'text-yellow-700', 'border-yellow-300',
+                'bg-red-100', 'bg-red-500', 'text-red-600', 'text-red-700', 'border-red-300',
+                'bg-purple-100', 'bg-purple-500', 'text-purple-600', 'text-purple-700', 'border-purple-300'
+            ],
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#1e3a8a', 
+                        secondary: '#3b82f6',
+                        accent: '#f59e0b'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'Microsoft JhengHei', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        [v-cloak] { display: none !important; }
+        body { font-family: 'Inter', 'Microsoft JhengHei', sans-serif; background-color: #f8fafc; }
+        .modal-enter-active, .modal-leave-active { transition: opacity 0.3s ease; }
+        .modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.95); }
+        .custom-scrollbar { scrollbar-width: thin; scrollbar-color: #cbd5e1 #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="text-slate-800 h-screen overflow-hidden flex flex-col">
+    <div id="app" class="h-full flex flex-col" v-cloak>
+        
+        <header class="bg-primary text-white shadow-md z-10 shrink-0">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-chart-line text-2xl text-blue-300"></i>
+                    <h1 class="text-xl font-bold tracking-wider">亞菲得 <span class="font-light text-blue-200">| 專案管理系統</span></h1>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button @click="generateGlobalReport" class="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-4 py-2 rounded-lg shadow font-medium transition flex items-center gap-2">
+                        <i class="fa-solid fa-robot"></i> AI 全局營運分析
+                    </button>
+                    <button @click="openNewProjectModal" class="bg-blue-500 hover:bg-blue-400 text-white px-4 py-2 rounded-lg shadow font-medium transition flex items-center gap-2">
+                        <i class="fa-solid fa-plus"></i> 新增專案
+                    </button>
+                </div>
+            </div>
+            
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-6 overflow-x-auto">
+                <button @click="currentTab = 'list'" :class="['py-3 border-b-4 font-medium transition whitespace-nowrap', currentTab === 'list' ? 'border-accent text-white' : 'border-transparent text-blue-200 hover:text-white']">
+                    1. 專案總表
+                </button>
+                <button @click="currentTab = 'gantt'" :class="['py-3 border-b-4 font-medium transition whitespace-nowrap', currentTab === 'gantt' ? 'border-accent text-white' : 'border-transparent text-blue-200 hover:text-white']">
+                    2. 進度時程 (甘特圖)
+                </button>
+                <button @click="currentTab = 'settings'" :class="['py-3 border-b-4 font-medium transition whitespace-nowrap', currentTab === 'settings' ? 'border-accent text-white' : 'border-transparent text-blue-200 hover:text-white']">
+                    3. 系統設定
+                </button>
+            </div>
+        </header>
+
+        <div class="shrink-0 bg-white border-b px-4 py-4 sm:px-6 lg:px-8 shadow-sm">
+            <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-slate-50 p-4 rounded-xl border flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xl"><i class="fa-solid fa-folder-open"></i></div>
+                    <div>
+                        <div class="text-sm text-slate-500">專案總數</div>
+                        <div class="text-2xl font-bold">{{ projects.length }}</div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-xl"><i class="fa-solid fa-arrow-trend-down"></i></div>
+                    <div>
+                        <div class="text-sm text-slate-500">累積總成本</div>
+                        <div class="text-2xl font-bold">NT$ {{ formatMoney(kpiData.totalCost) }}</div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xl"><i class="fa-solid fa-arrow-trend-up"></i></div>
+                    <div>
+                        <div class="text-sm text-slate-500">累積總營收</div>
+                        <div class="text-2xl font-bold">NT$ {{ formatMoney(kpiData.totalRevenue) }}</div>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-xl border flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center text-xl"><i class="fa-solid fa-percent"></i></div>
+                    <div>
+                        <div class="text-sm text-slate-500">整體 ROI</div>
+                        <div class="text-2xl font-bold" :class="kpiData.totalRoi >= 0 ? 'text-green-600' : 'text-red-500'">{{ kpiData.totalRoi }}%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <main class="flex-1 overflow-y-auto custom-scrollbar bg-slate-100 p-4 sm:p-6 lg:p-8 relative">
+            <div class="max-w-7xl mx-auto">
+                
+                <div v-show="currentTab === 'list'" class="bg-white rounded-xl shadow border overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-500 text-sm border-b select-none">
+                                    <th @click="sortBy('id')" class="p-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-200 transition">
+                                        專案編號
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'id'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('name')" class="p-4 font-semibold min-w-[150px] cursor-pointer hover:bg-slate-200 transition">
+                                        專案名稱
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'name'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('category')" class="p-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-200 transition">
+                                        類別
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'category'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('startDate')" class="p-4 font-semibold whitespace-nowrap cursor-pointer hover:bg-slate-200 transition">
+                                        起訖日期
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'startDate'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('statusId')" class="p-4 font-semibold text-center whitespace-nowrap cursor-pointer hover:bg-slate-200 transition">
+                                        狀態
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'statusId'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('progress')" class="p-4 font-semibold min-w-[100px] cursor-pointer hover:bg-slate-200 transition">
+                                        整體進度
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'progress'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('latestProgress')" class="p-4 font-semibold min-w-[180px] cursor-pointer hover:bg-slate-200 transition">
+                                        目前最新進度
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'latestProgress'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('cost')" class="p-4 font-semibold text-right whitespace-nowrap cursor-pointer hover:bg-slate-200 transition">
+                                        總成本
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'cost'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('revenue')" class="p-4 font-semibold text-right whitespace-nowrap cursor-pointer hover:bg-slate-200 transition">
+                                        總營收
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'revenue'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('profit')" class="p-4 font-semibold text-right whitespace-nowrap cursor-pointer hover:bg-slate-200 transition">
+                                        累積獲利
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'profit'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                    <th @click="sortBy('margin')" class="p-4 font-semibold text-right whitespace-nowrap cursor-pointer hover:bg-slate-200 transition">
+                                        毛利率
+                                        <span class="inline-block w-3 ml-1 text-slate-400">
+                                            <i v-if="sortKey !== 'margin'" class="fa-solid fa-sort"></i>
+                                            <i v-else-if="sortAsc" class="fa-solid fa-sort-up text-blue-500"></i>
+                                            <i v-else class="fa-solid fa-sort-down text-blue-500"></i>
+                                        </span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-200">
+                                <tr v-for="p in sortedProjects" :key="p.id" @click="openEditModal(p)" class="hover:bg-blue-50 cursor-pointer transition group">
+                                    <td class="p-4 text-sm font-medium text-slate-600 group-hover:text-blue-600">{{ p.id }}</td>
+                                    <td class="p-4 font-bold text-slate-800">{{ p.name }}</td>
+                                    <td class="p-4 text-sm text-slate-600">
+                                        <span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs whitespace-nowrap">{{ p.category || '未分類' }}</span>
+                                    </td>
+                                    <td class="p-4 text-xs text-slate-500 whitespace-nowrap">
+                                        {{ p.startDate }} <br> ~ {{ p.endDate }}
+                                    </td>
+                                    <td class="p-4 text-center">
+                                        <span :class="getStatusBadgeClass(p.statusId)" class="px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 shadow-sm whitespace-nowrap">
+                                            <i v-if="p.statusId === 's3' || p.statusId === 's2'" class="fa-solid fa-circle-notch fa-spin"></i>
+                                            {{ getStatusName(p.statusId) }}
+                                        </span>
+                                    </td>
+                                    <td class="p-4">
+                                        <div class="flex items-center gap-2">
+                                            <div class="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden min-w-[50px]">
+                                                <div class="h-full rounded-full transition-all duration-500" :class="getProgressBarClass(p.statusId)" :style="{ width: p.progress + '%' }"></div>
+                                            </div>
+                                            <span class="text-xs font-bold text-slate-500 w-8 text-right">{{ p.progress }}%</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-4 text-xs text-slate-600">
+                                        <div class="max-w-[180px] truncate" :title="p.latestProgress || '暫無進度說明'">
+                                            {{ p.latestProgress || '---' }}
+                                        </div>
+                                    </td>
+                                    <td class="p-4 text-right text-sm text-slate-600">${{ formatMoney(getProjectTotals(p).cost) }}</td>
+                                    <td class="p-4 text-right text-sm font-medium text-slate-800">${{ formatMoney(getProjectTotals(p).revenue) }}</td>
+                                    <td class="p-4 text-right font-bold" :class="getProjectTotals(p).profit >= 0 ? 'text-green-600' : 'text-red-500'">
+                                        ${{ formatMoney(getProjectTotals(p).profit) }}
+                                    </td>
+                                    <td class="p-4 text-right font-bold text-sm" :class="getProjectTotals(p).margin >= 0 ? 'text-blue-600' : 'text-red-500'">
+                                        {{ getProjectTotals(p).margin }}%
+                                    </td>
+                                </tr>
+                                <tr v-if="projects.length === 0">
+                                    <td colspan="11" class="p-8 text-center text-slate-400">目前尚無專案，請點擊上方「新增專案」建立。</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div v-show="currentTab === 'gantt'" class="bg-white rounded-xl shadow border p-4 sm:p-6 overflow-x-auto custom-scrollbar">
+                    <div class="min-w-[800px]">
+                        <div class="flex border-b pb-2 mb-4">
+                            <div class="w-48 shrink-0 font-bold text-slate-500 px-2 text-sm">專案名稱</div>
+                            <div class="flex-1 flex text-xs font-bold text-slate-400">
+                                <div v-for="month in ganttMonths" :key="month" class="flex-1 text-center border-l first:border-l-0 border-slate-200">{{ month }}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div v-for="p in sortedProjects" :key="p.id" class="flex items-center group relative cursor-pointer" @click="openEditModal(p)">
+                                <div class="w-48 shrink-0 pr-4">
+                                    <div class="text-sm font-bold text-slate-700 truncate group-hover:text-blue-600">{{ p.name }}</div>
+                                    <div class="text-xs text-slate-400">{{ p.startDate }} ~ {{ p.endDate }}</div>
+                                </div>
+                                <div class="flex-1 h-8 bg-slate-50 rounded-lg relative border overflow-hidden">
+                                    <div class="absolute top-1 bottom-1 rounded-md opacity-90 shadow-sm flex items-center px-2 transition-all"
+                                         :class="getGanttBarColorClass(p.statusId)"
+                                         :style="getGanttBarStyle(p)">
+                                        <span class="text-[10px] text-white font-bold whitespace-nowrap overflow-hidden hidden sm:block">
+                                            {{ p.progress }}% 
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div v-if="projects.length === 0" class="text-center py-8 text-slate-400 text-sm">沒有可顯示的時程資料</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-show="currentTab === 'settings'" class="space-y-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        
+                        <div class="bg-white rounded-xl shadow border p-6">
+                            <h2 class="text-lg font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-tags text-blue-500"></i> 專案類別管理</h2>
+                            <div class="flex gap-2 mb-4">
+                                <input v-model="newCategory" @keyup.enter="addCategory" type="text" placeholder="輸入新類別名稱..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <button @click="addCategory" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-bold transition">新增</button>
+                            </div>
+                            <ul class="space-y-2">
+                                <li v-for="(cat, index) in settings.categories" :key="index" class="flex justify-between items-center bg-slate-50 border rounded-lg px-3 py-2 text-sm">
+                                    <span class="font-medium text-slate-700">{{ cat }}</span>
+                                    <button @click="removeCategory(index)" class="text-red-400 hover:text-red-600 transition"><i class="fa-solid fa-trash-can"></i></button>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow border p-6">
+                            <h2 class="text-lg font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-layer-group text-purple-500"></i> 專案狀態與顏色管理</h2>
+                            <div class="flex gap-2 mb-4 items-center flex-wrap sm:flex-nowrap">
+                                <input v-model="newStatus.name" type="text" placeholder="狀態名稱(如:未啟動)" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-auto">
+                                <select v-model="newStatus.color" class="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto mt-2 sm:mt-0">
+                                    <option v-for="c in colorOptions" :key="c.val" :value="c.val">{{ c.label }}</option>
+                                </select>
+                                <button @click="addStatus" class="bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-lg text-sm font-bold transition w-full sm:w-auto mt-2 sm:mt-0">新增</button>
+                            </div>
+                            <ul class="space-y-2">
+                                <li v-for="(status, index) in settings.statuses" :key="status.id" class="flex justify-between items-center bg-slate-50 border rounded-lg px-3 py-2 text-sm">
+                                    <div class="flex items-center gap-3">
+                                        <div :class="['w-3 h-3 rounded-full', 'bg-' + status.color + '-500']"></div>
+                                        <span class="font-bold text-slate-700">{{ status.name }}</span>
+                                    </div>
+                                    <button @click="removeStatus(index)" class="text-red-400 hover:text-red-600 transition" :disabled="settings.statuses.length <= 1"><i class="fa-solid fa-trash-can"></i></button>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-white rounded-xl shadow border p-6 lg:col-span-2">
+                            <h2 class="text-lg font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-table-columns text-green-500"></i> 專案自訂欄位管理</h2>
+                            <p class="text-sm text-slate-500 mb-4">在此新增的欄位會自動出現在所有專案的「基本資訊」中。</p>
+                            <div class="flex gap-2 mb-4 items-center bg-slate-50 p-3 rounded-lg border flex-wrap sm:flex-nowrap">
+                                <input v-model="newField.name" type="text" placeholder="欄位名稱 (例如：預期參與人數)" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none w-full sm:w-auto">
+                                <select v-model="newField.type" class="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto mt-2 sm:mt-0">
+                                    <option value="text">文字輸入</option>
+                                    <option value="number">數字</option>
+                                    <option value="date">日期</option>
+                                </select>
+                                <button @click="addField" class="bg-green-100 hover:bg-green-200 text-green-700 px-4 py-2 rounded-lg text-sm font-bold transition w-full sm:w-auto mt-2 sm:mt-0">加入欄位</button>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                <div v-for="(field, index) in settings.customFields" :key="field.id" class="bg-white border shadow-sm rounded-lg p-3 flex justify-between items-center group">
+                                    <div>
+                                        <div class="font-bold text-slate-700 text-sm">{{ field.name }}</div>
+                                        <div class="text-xs text-slate-400">類型: {{ field.type === 'text' ? '文字' : (field.type === 'number' ? '數字' : '日期') }}</div>
+                                    </div>
+                                    <button @click="removeField(index)" class="text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-times"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <Transition name="modal">
+            <div v-if="isModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col overflow-hidden">
+                    
+                    <div class="px-6 py-4 border-b bg-slate-50 flex justify-between items-center shrink-0">
+                        <div class="flex items-center gap-3">
+                            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">{{ editData.id }}</span>
+                            <h2 class="text-xl font-bold text-slate-800">專案編輯與財務結算</h2>
+                        </div>
+                        <button @click="closeModal" class="text-slate-400 hover:text-slate-600 text-2xl transition"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto custom-scrollbar p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="space-y-6">
+                            <div class="bg-slate-50 rounded-xl p-5 border">
+                                <h3 class="font-bold text-slate-700 mb-4 border-b pb-2">基本資訊與進度</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 mb-1">專案名稱</label>
+                                        <input v-model="editData.name" type="text" class="w-full border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none border bg-white">
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 mb-1">專案類別</label>
+                                            <select v-model="editData.category" class="w-full border-slate-300 rounded-lg p-2 border outline-none bg-white">
+                                                <option v-for="cat in settings.categories" :key="cat" :value="cat">{{ cat }}</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 mb-1">專案狀態</label>
+                                            <select v-model="editData.statusId" class="w-full border-slate-300 rounded-lg p-2 border outline-none font-bold bg-white" :class="getStatusTextColor(editData.statusId)">
+                                                <option v-for="s in settings.statuses" :key="s.id" :value="s.id">{{ s.name }}</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 mb-1">開始日期</label>
+                                            <input v-model="editData.startDate" type="date" class="w-full border-slate-300 rounded-lg p-2 border outline-none bg-white">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-bold text-slate-500 mb-1">預計完成日</label>
+                                            <input v-model="editData.endDate" type="date" class="w-full border-slate-300 rounded-lg p-2 border outline-none bg-white">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 mb-1">最新進度說明 (顯示於總表)</label>
+                                        <textarea v-model="editData.latestProgress" rows="2" class="w-full border-slate-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none border bg-white text-sm" placeholder="請簡述目前最新進度..."></textarea>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-500 mb-1">整體進度 ({{ editData.progress }}%)</label>
+                                        <input v-model.number="editData.progress" type="range" min="0" max="100" class="w-full accent-blue-600">
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-4 pt-4 border-t border-slate-200">
+                                    <button @click="analyzeProjectHealth" :disabled="isAnalyzingHealth" class="w-full py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg text-sm font-bold shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-70">
+                                        <i class="fa-solid fa-wand-magic-sparkles" :class="{'fa-beat-fade': isAnalyzingHealth}"></i>
+                                        {{ isAnalyzingHealth ? 'AI 診斷分析中...' : '✨ 取得 AI 專案健康診斷' }}
+                                    </button>
+                                    <div v-if="aiHealthReport" class="mt-3 p-3 bg-purple-50 border border-purple-100 rounded-lg text-sm text-purple-800 leading-relaxed shadow-inner">
+                                        <div class="font-bold mb-1 flex items-center gap-1"><i class="fa-solid fa-robot"></i> 幕僚建議：</div>
+                                        {{ aiHealthReport }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div v-if="settings.customFields.length > 0 && editData.customData" class="bg-blue-50/50 rounded-xl p-5 border border-blue-100">
+                                <h3 class="font-bold text-slate-700 mb-4 border-b pb-2 flex items-center gap-2"><i class="fa-solid fa-star text-blue-400"></i> 自訂欄位資訊</h3>
+                                <div class="grid grid-cols-1 gap-4">
+                                    <div v-for="field in settings.customFields" :key="field.id">
+                                        <label class="block text-xs font-bold text-slate-500 mb-1">{{ field.name }}</label>
+                                        <input :type="field.type" v-model="editData.customData[field.id]" class="w-full border-slate-300 rounded-lg p-2 border outline-none bg-white">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-slate-50 rounded-xl p-5 border">
+                                <h3 class="font-bold text-slate-700 mb-4 border-b pb-2">細部任務 (WBS)</h3>
+                                <div class="flex gap-2 mb-3 flex-wrap sm:flex-nowrap">
+                                    <input v-model="newTaskText" @keyup.enter="addTask" type="text" placeholder="新增細部任務..." class="flex-1 border border-slate-300 rounded-lg p-2 text-sm outline-none bg-white min-w-[150px]">
+                                    <button @click="addTask" class="bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded-lg text-sm font-bold transition">新增</button>
+                                    <button @click="generateWBS" :disabled="isGeneratingTasks || !editData.name || editData.name === '新專案'" class="bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-1 rounded-lg text-sm font-bold transition flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center mt-2 sm:mt-0">
+                                        <i class="fa-solid fa-bolt" :class="{'fa-shake': isGeneratingTasks}"></i>
+                                        {{ isGeneratingTasks ? '生成中...' : 'AI 智能拆解' }}
+                                    </button>
+                                </div>
+                                <ul v-if="editData.tasks" class="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
+                                    <li v-for="task in editData.tasks" :key="task.id" class="flex items-start gap-3 p-2 hover:bg-slate-100 rounded-lg group transition">
+                                        <input type="checkbox" v-model="task.done" class="mt-1 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer">
+                                        <span :class="['flex-1 text-sm transition-all', task.done ? 'line-through text-slate-400' : 'text-slate-700']">{{ task.text }}</span>
+                                        <button @click="removeTask(task.id)" class="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-trash"></i></button>
+                                    </li>
+                                    <li v-if="editData.tasks.length === 0" class="text-xs text-slate-400 text-center py-2">尚未建立任何任務</li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-50 rounded-xl p-5 border flex flex-col h-full">
+                            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                                <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-coins text-yellow-500"></i> 每月財務結算紀錄</h3>
+                                <button @click="addFinancialMonth" class="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 text-xs rounded-lg font-bold transition flex items-center gap-1">
+                                    <i class="fa-solid fa-plus"></i> 新增月份
+                                </button>
+                            </div>
+                            
+                            <div v-if="editData.financials" class="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3 mb-4">
+                                <div v-for="(record, index) in editData.financials" :key="index" class="bg-white border rounded-lg p-3 relative group shadow-sm">
+                                    <button @click="removeFinancialMonth(index)" class="absolute top-2 right-2 text-slate-300 hover:text-red-500 transition"><i class="fa-solid fa-times"></i></button>
+                                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase">結算月份</label>
+                                            <input type="month" v-model="record.month" class="w-full border-slate-200 rounded p-1.5 text-sm outline-none bg-slate-50 focus:bg-white border">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase text-red-500">當月成本 (-)</label>
+                                            <div class="relative">
+                                                <span class="absolute left-2 top-1.5 text-slate-400 text-sm">$</span>
+                                                <input type="number" v-model.number="record.cost" class="w-full border-slate-200 rounded py-1.5 pl-5 pr-2 text-sm outline-none border focus:ring-1 focus:ring-red-300">
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase text-green-500">當月營收 (+)</label>
+                                            <div class="relative">
+                                                <span class="absolute left-2 top-1.5 text-slate-400 text-sm">$</span>
+                                                <input type="number" v-model.number="record.revenue" class="w-full border-slate-200 rounded py-1.5 pl-5 pr-2 text-sm outline-none border focus:ring-1 focus:ring-green-300">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="editData.financials.length === 0" class="text-center py-6 text-slate-400 text-sm">
+                                    目前尚無財務結算紀錄，請點擊右上方新增。
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="px-6 py-4 border-t bg-slate-50 flex justify-between items-center shrink-0">
+                        <button v-if="editData.id !== 'NEW'" @click="deleteProject(editData.id)" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2">
+                            <i class="fa-solid fa-trash-can"></i> 刪除專案
+                        </button>
+                        <div v-else></div>
+                        <div class="flex gap-3">
+                            <button @click="closeModal" class="bg-white hover:bg-slate-100 border text-slate-700 px-5 py-2 rounded-lg text-sm font-medium transition">取消</button>
+                            <button @click="saveProject" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-bold shadow transition">儲存變更</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
+        <Transition name="modal">
+            <div v-if="isGlobalReportOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col overflow-hidden">
+                    <div class="px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex justify-between items-center shrink-0">
+                        <h2 class="text-lg font-bold flex items-center gap-2"><i class="fa-solid fa-robot"></i> AI 全局營運分析報告</h2>
+                        <button @click="isGlobalReportOpen = false" class="text-white/80 hover:text-white text-2xl transition"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="p-6 overflow-y-auto custom-scrollbar space-y-4 text-slate-700 leading-relaxed">
+                        <div class="bg-purple-50 border border-purple-100 p-4 rounded-xl">
+                            <h4 class="font-bold text-purple-900 mb-2">📊 當前營運摘要</h4>
+                            <p class="text-sm">經 AI 分析，目前系統內共有 {{ projects.length }} 個專案。整體投資回報率 (ROI) 為 <span class="font-bold" :class="kpiData.totalRoi >= 0 ? 'text-green-600' : 'text-red-600'">{{ kpiData.totalRoi }}%</span>。</p>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-800 mb-1">💡 營運核心建議：</h4>
+                            <ul class="list-disc list-inside text-sm space-y-2 text-slate-600">
+                                <li><strong>高風險專案警示：</strong> 請密切注意財務 ROI 呈現負值的專案，應立即檢視其成本支出。</li>
+                                <li><strong>進度與時程落差：</strong> 建議定期落實 WBS 任務的勾選，這將有助於 AI 精準判斷健康度。</li>
+                                <li><strong>資源優化：</strong> 目前整體獲利表現正常，可對進行中 (WIP) 的高利潤專案追加資源。</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="px-6 py-3 border-t bg-slate-50 flex justify-end">
+                        <button @click="isGlobalReportOpen = false" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition">確認</button>
+                    </div>
+                </div>
+            </div>
+        </Transition>
+
+    </div>
+
+    <script>
+        const { createApp, ref, computed, reactive } = Vue;
+
+        createApp({
+            setup() {
+                // 系統預設基礎設定
+                const settings = reactive({
+                    categories: ['政府標案', '企業專案', '異業合作', '行銷專案', '其他'],
+                    statuses: [
+                        { id: 's1', name: '未啟動', color: 'gray' },
+                        { id: 's2', name: '進行中', color: 'blue' },
+                        { id: 's3', name: '審核中', color: 'yellow' },
+                        { id: 's4', name: '已完成', color: 'green' },
+                        { id: 's5', name: '已中止', color: 'red' }
+                    ],
+                    customFields: [
+                        { id: 'cf1', name: '預期參與人數', type: 'number' },
+                        { id: 'cf2', name: '雲端文件連結', type: 'text' }
+                    ]
+                });
+
+                // 預設模擬專案資料
+                const projects = ref([
+                    {
+                        id: 'PJS-001',
+                        name: '2026 亞菲得官方網站改版',
+                        category: '企業專案',
+                        statusId: 's2',
+                        progress: 65,
+                        latestProgress: '後端 API 整合測試中，預計下週完成',
+                        startDate: '2026-02-01',
+                        endDate: '2026-08-15',
+                        customData: { cf1: 5000, cf2: 'https://drive.google.com/...' },
+                        tasks: [
+                            { id: 1, text: 'UI/UX 規格書確認', done: true },
+                            { id: 2, text: '前端 Tailwind 框架建置', done: true },
+                            { id: 3, text: '後端 API 整合與測試', done: false },
+                            { id: 4, text: '正式上線與 SEO 優化', done: false }
+                        ],
+                        financials: [
+                            { month: '2026-02', cost: 50000, revenue: 0 },
+                            { month: '2026-03', cost: 45000, revenue: 20000 },
+                            { month: '2026-04', cost: 30000, revenue: 150000 }
+                        ]
+                    },
+                    {
+                        id: 'PJS-002',
+                        name: 'Q2 產品發表年中慶活動',
+                        category: '行銷專案',
+                        statusId: 's4',
+                        progress: 100,
+                        latestProgress: '活動圓滿結束，正在結算尾款',
+                        startDate: '2026-04-10',
+                        endDate: '2026-06-25',
+                        customData: { cf1: 250, cf2: '' },
+                        tasks: [
+                            { id: 1, text: '場地租借與佈置確認', done: true },
+                            { id: 2, text: 'KOL 邀約與講稿審查', done: true },
+                            { id: 3, text: '活動現場執行與撤場', done: true }
+                        ],
+                        financials: [
+                            { month: '2026-04', cost: 120000, revenue: 0 },
+                            { month: '2026-05', cost: 80000, revenue: 450000 }
+                        ]
+                    }
+                ]);
+
+                // 排序控制狀態
+                const sortKey = ref('id');
+                const sortAsc = ref(true);
+
+                const sortBy = (key) => {
+                    if (sortKey.value === key) {
+                        sortAsc.value = !sortAsc.value;
+                    } else {
+                        sortKey.value = key;
+                        sortAsc.value = true;
+                    }
+                };
+
+                // 計算單一專案財務加總與毛利率
+                const getProjectTotals = (project) => {
+                    if (!project.financials || project.financials.length === 0) {
+                        return { cost: 0, revenue: 0, profit: 0, margin: 0 };
+                    }
+                    const cost = project.financials.reduce((sum, r) => sum + (Number(r.cost) || 0), 0);
+                    const revenue = project.financials.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
+                    const profit = revenue - cost;
+                    
+                    // 計算毛利率：(營收 - 成本) / 營收。若營收為0則顯示0
+                    let margin = 0;
+                    if (revenue > 0) {
+                        margin = Number(((profit / revenue) * 100).toFixed(1));
+                    } else if (cost > 0) {
+                        margin = -100; // 只有成本沒有營收的情況，視為 -100%
+                    }
+                    
+                    return { cost, revenue, profit, margin };
+                };
+
+                // 產出排序後的資料陣列
+                const sortedProjects = computed(() => {
+                    return [...projects.value].sort((a, b) => {
+                        let valA, valB;
+
+                        // 判斷要取用的比較值
+                        if (['cost', 'revenue', 'profit', 'margin'].includes(sortKey.value)) {
+                            valA = getProjectTotals(a)[sortKey.value];
+                            valB = getProjectTotals(b)[sortKey.value];
+                        } else if (sortKey.value === 'startDate') {
+                            valA = new Date(a.startDate).getTime() || 0;
+                            valB = new Date(b.startDate).getTime() || 0;
+                        } else {
+                            valA = a[sortKey.value];
+                            valB = b[sortKey.value];
+                        }
+
+                        // 處理未定義的情況
+                        if (valA === undefined || valA === null) valA = '';
+                        if (valB === undefined || valB === null) valB = '';
+
+                        let result = 0;
+                        // 若皆為數字則進行數值相減比較，否則轉為字串比較
+                        if (typeof valA === 'number' && typeof valB === 'number') {
+                            result = valA - valB;
+                        } else {
+                            result = String(valA).localeCompare(String(valB));
+                        }
+
+                        return sortAsc.value ? result : -result;
+                    });
+                });
+
+                // 導覽頁簽、Modal 控制狀態
+                const currentTab = ref('list');
+                const isModalOpen = ref(false);
+                const isGlobalReportOpen = ref(false);
+                
+                // 暫存編輯區
+                const editData = ref({});
+                const newTaskText = ref('');
+
+                // 設定面板雙向綁定欄位
+                const newCategory = ref('');
+                const newStatus = reactive({ name: '', color: 'gray' });
+                const newField = reactive({ name: '', type: 'text' });
+                const colorOptions = [
+                    { val: 'gray', label: '灰色' }, { val: 'blue', label: '藍色' },
+                    { val: 'indigo', label: '靛藍' }, { val: 'green', label: '綠色' },
+                    { val: 'yellow', label: '黃色' }, { val: 'red', label: '紅色' },
+                    { val: 'purple', label: '紫色' }
+                ];
+
+                // 模擬 AI 動態載入狀態
+                const isAnalyzingHealth = ref(false);
+                const aiHealthReport = ref('');
+                const isGeneratingTasks = ref(false);
+
+                // 甘特圖 2026 全年時間軸
+                const ganttMonths = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+
+                // 全局頂端看版 KPI 計算
+                const kpiData = computed(() => {
+                    let totalCost = 0;
+                    let totalRevenue = 0;
+                    projects.value.forEach(p => {
+                        const totals = getProjectTotals(p);
+                        totalCost += totals.cost;
+                        totalRevenue += totals.revenue;
+                    });
+                    const totalRoi = totalCost === 0 ? 0 : ((totalRevenue - totalCost) / totalCost * 100).toFixed(1);
+                    return { totalCost, totalRevenue, totalRoi };
+                });
+
+                // 格式化千分位
+                const formatMoney = (value) => {
+                    return new Intl.NumberFormat('zh-TW', { maximumFractionDigits: 0 }).format(value || 0);
+                };
+
+                // 解析樣式對照工具
+                const getStatusName = (id) => settings.statuses.find(s => s.id === id)?.name || '未知';
+                const getStatusBadgeClass = (id) => {
+                    const color = settings.statuses.find(s => s.id === id)?.color || 'gray';
+                    return `bg-${color}-100 text-${color}-700 border border-${color}-300`;
+                };
+                const getStatusTextColor = (id) => {
+                    const color = settings.statuses.find(s => s.id === id)?.color || 'gray';
+                    return `text-${color}-600`;
+                };
+                const getProgressBarClass = (id) => {
+                    const color = settings.statuses.find(s => s.id === id)?.color || 'blue';
+                    return `bg-${color}-500`;
+                };
+                const getGanttBarColorClass = (id) => {
+                    const color = settings.statuses.find(s => s.id === id)?.color || 'blue';
+                    return `bg-${color}-500 text-white`;
+                };
+
+                // 核心：動態計算甘特圖進度條之左側偏移量與總寬度 (以2026年為基準)
+                const getGanttBarStyle = (project) => {
+                    if (!project.startDate || !project.endDate) return { left: '0%', width: '0%' };
+                    
+                    const yearStart = new Date('2026-01-01').getTime();
+                    const yearEnd = new Date('2026-12-31').getTime();
+                    const totalDuration = yearEnd - yearStart;
+
+                    const start = new Date(project.startDate).getTime();
+                    const end = new Date(project.endDate).getTime();
+
+                    const clampedStart = Math.max(yearStart, Math.min(yearEnd, start));
+                    const clampedEnd = Math.max(yearStart, Math.min(yearEnd, end));
+
+                    const leftPercent = ((clampedStart - yearStart) / totalDuration * 100).toFixed(2);
+                    const widthPercent = ((clampedEnd - clampedStart) / totalDuration * 100).toFixed(2);
+
+                    return { left: `${leftPercent}%`, width: `${widthPercent}%`, minWidth: '24px' };
+                };
+
+                // 新增專案彈窗初始化
+                const openNewProjectModal = () => {
+                    const cData = {};
+                    settings.customFields.forEach(f => cData[f.id] = f.type === 'number' ? 0 : '');
+                    
+                    editData.value = {
+                        id: 'NEW',
+                        name: '新專案',
+                        category: settings.categories[0] || '',
+                        statusId: 's1',
+                        progress: 0,
+                        latestProgress: '',
+                        startDate: '2026-07-01',
+                        endDate: '2026-12-31',
+                        customData: cData,
+                        tasks: [],
+                        financials: []
+                    };
+                    aiHealthReport.value = '';
+                    isModalOpen.value = true;
+                };
+
+                // 點擊專案列觸發編輯彈窗
+                const openEditModal = (project) => {
+                    editData.value = JSON.parse(JSON.stringify(project)); // 深拷貝斷開引用
+                    if (!editData.value.customData) editData.value.customData = {};
+                    aiHealthReport.value = '';
+                    isModalOpen.value = true;
+                };
+
+                const closeModal = () => { isModalOpen.value = false; };
+
+                const saveProject = () => {
+                    if (editData.value.id === 'NEW') {
+                        const nextId = `PJS-${String(projects.value.length + 1).padStart(3, '0')}`;
+                        editData.value.id = nextId;
+                        projects.value.push(editData.value);
+                    } else {
+                        const idx = projects.value.findIndex(p => p.id === editData.value.id);
+                        if (idx !== -1) projects.value[idx] = editData.value;
+                    }
+                    isModalOpen.value = false;
+                };
+
+                const deleteProject = (id) => {
+                    if (confirm('確定要刪除此專案嗎？此操作將無法還原。')) {
+                        projects.value = projects.value.filter(p => p.id !== id);
+                        isModalOpen.value = false;
+                    }
+                };
+
+                // WBS 內部任務操作
+                const addTask = () => {
+                    if (!newTaskText.value.trim()) return;
+                    if (!editData.value.tasks) editData.value.tasks = [];
+                    editData.value.tasks.push({
+                        id: Date.now(),
+                        text: newTaskText.value.trim(),
+                        done: false
+                    });
+                    newTaskText.value = '';
+                };
+                const removeTask = (taskId) => {
+                    editData.value.tasks = editData.value.tasks.filter(t => t.id !== taskId);
+                };
+
+                // 財務細項操作
+                const addFinancialMonth = () => {
+                    if (!editData.value.financials) editData.value.financials = [];
+                    editData.value.financials.push({ month: '2026-07', cost: 0, revenue: 0 });
+                };
+                const removeFinancialMonth = (index) => {
+                    editData.value.financials.splice(index, 1);
+                };
+
+                // 系統設定常規操作
+                const addCategory = () => {
+                    if (newCategory.value.trim() && !settings.categories.includes(newCategory.value.trim())) {
+                        settings.categories.push(newCategory.value.trim());
+                        newCategory.value = '';
+                    }
+                };
+                const removeCategory = (index) => { settings.categories.splice(index, 1); };
+
+                const addStatus = () => {
+                    if (!newStatus.name.trim()) return;
+                    settings.statuses.push({
+                        id: `s${settings.statuses.length + 1}`,
+                        name: newStatus.name.trim(),
+                        color: newStatus.color
+                    });
+                    newStatus.name = '';
+                };
+                const removeStatus = (index) => { if (settings.statuses.length > 1) settings.statuses.splice(index, 1); };
+
+                const addField = () => {
+                    if (!newField.name.trim()) return;
+                    settings.customFields.push({
+                        id: `cf_${Date.now()}`,
+                        name: newField.name.trim(),
+                        type: newField.type
+                    });
+                    newField.name = '';
+                };
+                const removeField = (index) => { settings.customFields.splice(index, 1); };
+
+                // 模擬 AI 核心決策回饋
+                const analyzeProjectHealth = () => {
+                    isAnalyzingHealth.value = true;
+                    setTimeout(() => {
+                        const profit = getProjectTotals(editData.value).profit;
+                        if (profit < 0) {
+                            aiHealthReport.value = "⚠️ 本專案目前處於虧損狀態。WBS 任務完成率較低，且近期的當月成本高昂。建議控制外包支出，並重新評估交付範圍。";
+                        } else if (editData.value.progress > 80) {
+                            aiHealthReport.value = "✨ 專案整體推進健康！目前財務狀況良好，利潤已達預期。建議提早啟動客戶驗收程序，準備結案尾款核銷。";
+                        } else {
+                            aiHealthReport.value = "💡 專案進度與時程相符，財務配比健全。建議維持當前的開發節奏，並留意下個月的關鍵里程碑交付。";
+                        }
+                        isAnalyzingHealth.value = false;
+                    }, 1200);
+                };
+
+                const generateWBS = () => {
+                    isGeneratingTasks.value = true;
+                    setTimeout(() => {
+                        if (!editData.value.tasks) editData.value.tasks = [];
+                        editData.value.tasks.push(
+                            { id: Date.now() + 1, text: `【AI 生成】${editData.value.name} 階段一：需求訪談與藍圖規劃`, done: false },
+                            { id: Date.now() + 2, text: `【AI 生成】${editData.value.name} 階段二：模組化開發與內部核心測試`, done: false },
+                            { id: Date.now() + 3, text: `【AI 生成】${editData.value.name} 階段三：用戶反饋修正與上線部署`, done: false }
+                        );
+                        isGeneratingTasks.value = false;
+                    }, 1000);
+                };
+
+                const generateGlobalReport = () => { isGlobalReportOpen.value = true; };
+
+                return {
+                    settings, projects, currentTab, isModalOpen, isGlobalReportOpen, editData, newTaskText,
+                    newCategory, newStatus, newField, colorOptions, isAnalyzingHealth, aiHealthReport, isGeneratingTasks, ganttMonths,
+                    getProjectTotals, kpiData, formatMoney, getStatusName, getStatusBadgeClass, getStatusTextColor,
+                    getProgressBarClass, getGanttBarColorClass, getGanttBarStyle, openNewProjectModal, openEditModal,
+                    closeModal, saveProject, deleteProject, addTask, removeTask, addFinancialMonth, removeFinancialMonth,
+                    addCategory, removeCategory, addStatus, removeStatus, addField, removeField,
+                    analyzeProjectHealth, generateWBS, generateGlobalReport,
+                    sortKey, sortAsc, sortBy, sortedProjects // 匯出排序相關的變數與方法
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
